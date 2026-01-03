@@ -1,10 +1,12 @@
 #requires -Modules PnP.PowerShell
-$ErrorActionPreference = "Stop"
 
 param(
   [Parameter(Mandatory=$true)]
   [string]$PfxPath
 )
+
+$ErrorActionPreference = "Stop"
+
 
 # ====== CONFIG (from env) ======
 $SiteUrl     = $env:SITE_URL
