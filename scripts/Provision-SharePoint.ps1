@@ -1,32 +1,35 @@
 #requires -Modules PnP.PowerShell
 $ErrorActionPreference = "Stop"
 
-# ====== CONFIG ======
+param(
+  [Parameter(Mandatory=$true)]
+  [string]$PfxPath
+)
+
+# ====== CONFIG (from env) ======
 $SiteUrl     = $env:SITE_URL
 $TenantId    = $env:TENANT_ID
 $ClientId    = $env:CLIENT_ID
-$PfxBase64   = $env:CERT_PFX_BASE64
 $PfxPassword = $env:CERT_PASSWORD
 
-if (-not $SiteUrl -or -not $TenantId -or -not $ClientId -or -not $PfxBase64 -or -not $PfxPassword) {
-  throw "Missing required environment variables. Check GitHub Secrets."
+if (-not $SiteUrl -or -not $TenantId -or -not $ClientId -or -not $PfxPassword) {
+  throw "Missing required environment variables. Check GitHub Secrets (SITE_URL, TENANT_ID, CLIENT_ID, CERT_PASSWORD)."
+}
+
+if (!(Test-Path $PfxPath)) {
+  throw "PFX file not found at path: $PfxPath"
 }
 
 Write-Host "== PnP Provisioning starting =="
-
-# ====== AUTH ======
 Write-Host "Connecting to SharePoint site: $SiteUrl"
 
-$pfxBytes = [Convert]::FromBase64String($PfxBase64)
-$tempPfx  = Join-Path $env:RUNNER_TEMP "pnp-cert.pfx"
-[IO.File]::WriteAllBytes($tempPfx, $pfxBytes)
-
 try {
+  # ====== AUTH ======
   Connect-PnPOnline `
     -Url $SiteUrl `
     -Tenant $TenantId `
     -ClientId $ClientId `
-    -CertificatePath $tempPfx `
+    -CertificatePath $PfxPath `
     -CertificatePassword (ConvertTo-SecureString $PfxPassword -AsPlainText -Force)
 
   Write-Host "Connected."
@@ -53,6 +56,7 @@ try {
       if ($Description) {
         Set-PnPField -List $list -Identity $InternalName -Values @{ Description = $Description } | Out-Null
       }
+
       Write-Host "Field created."
       return
     }
@@ -69,11 +73,13 @@ try {
       $xml = [xml]$field.SchemaXml
       $choicesNode = $xml.Field.Choices
       $choicesNode.RemoveAll() | Out-Null
+
       foreach ($c in $merged) {
         $choice = $xml.CreateElement("CHOICE")
         $choice.InnerText = $c
         $choicesNode.AppendChild($choice) | Out-Null
       }
+
       Set-PnPField -List $list -Identity $InternalName -Values @{ SchemaXml = $xml.OuterXml } | Out-Null
       Write-Host "Choices updated."
     } else {
@@ -102,7 +108,6 @@ try {
       return
     }
 
-    # Update existing view (idempotent + nice for LO3)
     Write-Host "View exists. Updating fields/query to desired state..."
     Set-PnPView -List $ListTitle -Identity $ViewName -Fields $ViewFields -Query $query | Out-Null
     Write-Host "View updated."
@@ -129,7 +134,6 @@ try {
     -Choices @("PRP","Research","Sprint Artifact","Presentation","Deliverable","Other")
 
   # ====== VIEWS ======
-  # Use only <Where> here; helper wraps into <Query>...</Query>
   Ensure-View -ListTitle $ArchitectureLibrary -ViewName "Diagrams" `
     -ViewFields @("DocIcon","LinkFilename","Modified","Editor","DocumentType") `
     -CamlWhere "<Where><Eq><FieldRef Name='DocumentType'/><Value Type='Choice'>Diagram</Value></Eq></Where>"
@@ -168,7 +172,7 @@ try {
 
   Write-Host "== Provisioning completed successfully. =="
 
-} finally {
+}
+finally {
   try { Disconnect-PnPOnline | Out-Null } catch {}
-  try { Remove-Item $tempPfx -Force -ErrorAction SilentlyContinue } catch {}
 }
