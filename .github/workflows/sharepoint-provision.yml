@@ -1,1 +1,33 @@
+name: Provision SharePoint (PnP PowerShell)
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "scripts/**"
+      - ".github/workflows/**"
+
+jobs:
+  provision:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PnP PowerShell
+        shell: pwsh
+        run: |
+          Install-Module PnP.PowerShell -Force -Scope CurrentUser
+
+      - name: Run provisioning
+        shell: pwsh
+        env:
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CERT_PFX_BASE64: ${{ secrets.CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          pwsh -File ./scripts/Provision-SharePoint.ps1
