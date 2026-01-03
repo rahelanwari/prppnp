@@ -7,7 +7,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-
 # ====== CONFIG (from env) ======
 $SiteUrl     = $env:SITE_URL
 $TenantId    = $env:TENANT_ID
@@ -48,7 +47,7 @@ try {
 
     Write-Host "---- Ensure field [$InternalName] on [$ListTitle]"
 
-    $list = Get-PnPList -Identity $ListTitle -ErrorAction Stop
+    $list  = Get-PnPList -Identity $ListTitle -ErrorAction Stop
     $field = Get-PnPField -List $list -Identity $InternalName -ErrorAction SilentlyContinue
 
     if (-not $field) {
@@ -84,7 +83,8 @@ try {
 
       Set-PnPField -List $list -Identity $InternalName -Values @{ SchemaXml = $xml.OuterXml } | Out-Null
       Write-Host "Choices updated."
-    } else {
+    }
+    else {
       Write-Host "Field exists and choices are already OK."
     }
   }
@@ -97,7 +97,7 @@ try {
       [string]$CamlWhere
     )
 
-    # Always wrap as Query for consistency
+    # Always wrap as Query for consistency (used only for Add-PnPView)
     $query = "<Query>$CamlWhere</Query>"
 
     Write-Host "---- Ensure view [$ViewName] on [$ListTitle]"
@@ -110,8 +110,9 @@ try {
       return
     }
 
-    Write-Host "View exists. Updating fields/query to desired state..."
-    Set-PnPView -List $ListTitle -Identity $ViewName -Fields $ViewFields -Query $query | Out-Null
+    # IMPORTANT: Set-PnPView does not support -Query in some PnP.PowerShell versions on GitHub runners
+    Write-Host "View exists. Updating fields only (Query not changed to avoid -Query compatibility issues)..."
+    Set-PnPView -List $ListTitle -Identity $ViewName -Fields $ViewFields | Out-Null
     Write-Host "View updated."
   }
 
